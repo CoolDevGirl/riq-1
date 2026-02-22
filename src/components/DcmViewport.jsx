@@ -3,6 +3,7 @@ import { Enums as csEnums } from '@cornerstonejs/core';
 import { useCornerstone } from '../hooks/useCornerstone';
 import { dicomService } from '../services/dicomService';
 import AnnotationToolbar from './AnnotationToolbar';
+import * as cornerstoneTools from '@cornerstonejs/tools';
 import { Enums as csToolsEnums } from '@cornerstonejs/tools';
 import { setupToolGroup } from '../config/cornerstoneConfig';
 
@@ -33,27 +34,32 @@ const DcmViewport = ({ dcmFiles = [], id = 'default-viewport' }) => {
       try {
         await viewport.setStack(imageIds);
         
-        // Wait for the first image to render before centering
-        const onImageRendered = () => {
-          if (!hasCenteredRef.current) {
+        // Robust Centering & Resizing Logic
+        const centerImage = () => {
+          if (!renderingEngine || !viewport || !elementRef.current) return;
+          
+          window.requestAnimationFrame(() => {
             renderingEngine.resize();
             viewport.resetCamera();
             viewport.render();
-            hasCenteredRef.current = true;
+            console.log(`[Cornerstone] Centering: ${elementRef.current.clientWidth}x${elementRef.current.clientHeight}`);
+          });
+          hasCenteredRef.current = true;
+        };
+
+        const onImageRendered = () => {
+          if (!hasCenteredRef.current) {
+            centerImage();
           }
         };
 
         element.addEventListener(csEnums.Events.IMAGE_RENDERED, onImageRendered);
         
-        // As a fallback, trigger centering after a delay
-        setTimeout(() => {
-          if (!hasCenteredRef.current) {
-            renderingEngine.resize();
-            viewport.resetCamera();
-            viewport.render();
-            hasCenteredRef.current = true;
-          }
-        }, 300);
+        // Multiple fallback triggers to ensure stability as layout settles
+        setTimeout(centerImage, 50);
+        setTimeout(centerImage, 250);
+        setTimeout(centerImage, 750);
+        setTimeout(centerImage, 1500);
 
       } catch (err) {
         console.error('DcmViewport LOAD ERROR:', err);
@@ -111,8 +117,12 @@ const DcmViewport = ({ dcmFiles = [], id = 'default-viewport' }) => {
       toolGroupInstance.addViewport(id, renderingEngine.id);
     }
 
-    // 2. Define our tools
-    const annotationTools = ['Length', 'Probe', 'RectangleROI', 'EllipticalROI', 'Bidirectional'];
+    // 2. Define our tools supported by our dropdown
+    const annotationTools = [
+      'Length', 'Probe', 'RectangleROI', 'EllipticalROI', 'CircleROI',
+      'Bidirectional', 'Angle', 'CobbAngle', 'ArrowAnnotate', 
+      'PlanarFreehandROI', 'Eraser'
+    ];
     const primaryTools = ['WindowLevel', ...annotationTools];
 
     // 3. Set all primary-compatible tools to Passive
@@ -150,6 +160,84 @@ const DcmViewport = ({ dcmFiles = [], id = 'default-viewport' }) => {
     }, 50);
   };
 
+  const handleSaveAnnotations = () => {
+    const element = elementRef.current;
+    if (!element) return;
+
+    // List of annotation tools to collect data from
+    const annotationTools = [
+      'Length', 'Probe', 'RectangleROI', 'EllipticalROI', 'CircleROI',
+      'Bidirectional', 'Angle', 'CobbAngle', 'ArrowAnnotate', 
+      'PlanarFreehandROI'
+    ];
+
+    const allAnnotations = {};
+
+    annotationTools.forEach(toolName => {
+      // annotation.state.getAnnotations(toolName, element) is the standard 1.x way
+      const toolAnnotations = setupToolGroup()._toolInstances[toolName] 
+        ? cornerstoneTools.annotation.state.getAnnotations(toolName, element)
+        : [];
+        
+      if (toolAnnotations && toolAnnotations.length > 0) {
+        allAnnotations[toolName] = toolAnnotations;
+      }
+    });
+
+    if (Object.keys(allAnnotations).length === 0) {
+      alert('No annotations found to save.');
+      return;
+    }
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allAnnotations, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href",     dataStr);
+    downloadAnchorNode.setAttribute("download", `annotations_${id}_${new Date().getTime()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    console.log('[Cornerstone] Annotations exported successfully');
+  };
+
+  const handleClearAnnotations = () => {
+    if (window.confirm('Are you sure you want to clear all annotations?')) {
+      cornerstoneTools.annotation.state.removeAllAnnotations();
+      
+      // Force render to clear visuals
+      if (renderingEngine) {
+        const viewport = renderingEngine.getViewport(id);
+        if (viewport) {
+          viewport.render();
+          renderingEngine.renderViewports([id]);
+        }
+      }
+      console.log('[Cornerstone] All annotations cleared');
+    }
+  };
+
+  const handleOrientationChange = (type) => {
+    const viewport = renderingEngine?.getViewport(id);
+    if (!viewport) return;
+
+    if (type === 'flipH') {
+      const camera = viewport.getCamera();
+      viewport.setCamera({ flipHorizontal: !camera.flipHorizontal });
+    } else if (type === 'flipV') {
+      const camera = viewport.getCamera();
+      viewport.setCamera({ flipVertical: !camera.flipVertical });
+    } else if (type === 'rotate90') {
+      const camera = viewport.getCamera();
+      viewport.setCamera({ rotation: (camera.rotation || 0) + 90 });
+    } else if (type === 'center') {
+      renderingEngine.resize();
+      viewport.resetCamera();
+      viewport.render();
+      console.log('[Cornerstone] Viewport Manual Reset');
+    }
+    
+    viewport.render();
+  };
+
   return (
     <div style={{ 
       width: '100%', 
@@ -159,9 +247,16 @@ const DcmViewport = ({ dcmFiles = [], id = 'default-viewport' }) => {
       overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
-      position: 'relative'
+      position: 'relative',
+      minWidth: '0'
     }}>
-      <AnnotationToolbar activeTool={activeTool} onToolSelect={handleToolSelect} />
+      <AnnotationToolbar 
+        activeTool={activeTool} 
+        onToolSelect={handleToolSelect} 
+        onOrientationChange={handleOrientationChange}
+        onSave={handleSaveAnnotations}
+        onClear={handleClearAnnotations}
+      />
       
       <div
         ref={elementRef}
@@ -169,10 +264,9 @@ const DcmViewport = ({ dcmFiles = [], id = 'default-viewport' }) => {
           flex: 1, 
           width: '100%', 
           minHeight: '0', 
+          minWidth: '0',
           position: 'relative', 
           cursor: activeTool === 'WindowLevel' ? 'default' : 'crosshair',
-          // Subtle border to see the interaction area
-          border: '1px solid rgba(255,255,255,0.05)'
         }}
         onContextMenu={(e) => e.preventDefault()}
       />

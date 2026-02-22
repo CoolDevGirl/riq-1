@@ -3,6 +3,7 @@ import {
   metaData,
   imageLoader,
   registerImageLoader,
+  Settings,
 } from '@cornerstonejs/core';
 import * as cornerstone from '@cornerstonejs/core';
 import {
@@ -21,6 +22,8 @@ import {
   ArrowAnnotateTool,
   EraserTool,
   PlanarFreehandROITool,
+  CobbAngleTool,
+  CircleROITool,
   ToolGroupManager,
   Enums as csToolsEnums,
   annotation,
@@ -75,14 +78,26 @@ export async function initCornerstone() {
     addTool(ArrowAnnotateTool);
     addTool(EraserTool);
     addTool(PlanarFreehandROITool);
+    addTool(CobbAngleTool);
+    addTool(CircleROITool);
 
-    // Set global annotation styles (Yellow for visibility)
+    // Set global annotation styles (Green for high visibility)
     annotation.config.style.setDefaultToolStyles({
       global: {
-        color: 'rgb(255, 255, 0)',
+        color: 'rgb(0, 255, 0)',
         lineWidth: '2',
+        textBoxVisibility: true,
+        textBoxColor: 'rgb(0, 255, 0)',
+        textBoxFontSize: '14px',
+        textBoxBackground: 'rgba(0, 0, 0, 0.4)',
+        textBoxPadding: '4',
+        shadow: true,
       },
     });
+
+    // Prevent drawing outside the image bounds globally
+    // This affects annotation tools like Length, Angle, etc.
+    Settings.getRuntimeSettings().set('preventHandleOutsideImage', true);
 
     console.log('Cornerstone3D 1.70.3 Initialized');
   })();
@@ -94,24 +109,50 @@ export const TOOL_GROUP_ID = 'MY_TOOL_GROUP';
 
 export function setupToolGroup() {
   let toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_ID);
+  const isNew = !toolGroup;
 
-  if (!toolGroup) {
+  if (isNew) {
     toolGroup = ToolGroupManager.createToolGroup(TOOL_GROUP_ID);
+  }
 
-    toolGroup.addTool(WindowLevelTool.toolName);
-    toolGroup.addTool(ZoomTool.toolName);
-    toolGroup.addTool(PanTool.toolName);
-    toolGroup.addTool(StackScrollTool.toolName);
-    toolGroup.addTool(LengthTool.toolName);
-    toolGroup.addTool(ProbeTool.toolName);
-    toolGroup.addTool(RectangleROITool.toolName);
-    toolGroup.addTool(EllipticalROITool.toolName);
-    toolGroup.addTool(BidirectionalTool.toolName);
-    toolGroup.addTool(AngleTool.toolName);
-    toolGroup.addTool(ArrowAnnotateTool.toolName);
-    toolGroup.addTool(EraserTool.toolName);
-    toolGroup.addTool(PlanarFreehandROITool.toolName);
+  const desiredTools = [
+    { name: WindowLevelTool.toolName, tool: WindowLevelTool },
+    { name: ZoomTool.toolName, tool: ZoomTool },
+    { name: PanTool.toolName, tool: PanTool },
+    { name: StackScrollTool.toolName, tool: StackScrollTool },
+    { name: LengthTool.toolName, tool: LengthTool },
+    { name: ProbeTool.toolName, tool: ProbeTool },
+    { name: RectangleROITool.toolName, tool: RectangleROITool },
+    { name: EllipticalROITool.toolName, tool: EllipticalROITool },
+    { name: BidirectionalTool.toolName, tool: BidirectionalTool },
+    { name: AngleTool.toolName, tool: AngleTool },
+    { name: ArrowAnnotateTool.toolName, tool: ArrowAnnotateTool },
+    { name: EraserTool.toolName, tool: EraserTool },
+    { name: PlanarFreehandROITool.toolName, tool: PlanarFreehandROITool },
+    { name: CobbAngleTool.toolName, tool: CobbAngleTool },
+    { name: CircleROITool.toolName, tool: CircleROITool },
+  ];
 
+  desiredTools.forEach(({ name, tool }) => {
+    // Check silently if the tool is already added to the tool group
+    // In 1.x, ToolGroup has a _toolInstances map. Using it directly avoids getToolInstance warning.
+    const isToolAdded = !!toolGroup._toolInstances[name];
+
+    if (!isToolAdded) {
+      try {
+        // Double-check if registered with library globally first
+        // If not registered globally, add it here as a safeguard
+        toolGroup.addTool(name, {
+          preventHandleOutsideImage: true,
+        });
+        toolGroup.setToolPassive(name);
+      } catch (e) {
+        console.warn(`[Cornerstone] Warning: Could not register ${name} to ToolGroup.`, e);
+      }
+    }
+  });
+
+  if (isNew) {
     toolGroup.setToolActive(WindowLevelTool.toolName, {
       bindings: [{ mouseButton: csToolsEnums.MouseBindings.Primary }],
     });
@@ -122,17 +163,6 @@ export function setupToolGroup() {
       bindings: [{ mouseButton: csToolsEnums.MouseBindings.Auxiliary }],
     });
     toolGroup.setToolActive(StackScrollTool.toolName);
-
-    // Set annotation tools to passive by default
-    toolGroup.setToolPassive(LengthTool.toolName);
-    toolGroup.setToolPassive(ProbeTool.toolName);
-    toolGroup.setToolPassive(RectangleROITool.toolName);
-    toolGroup.setToolPassive(EllipticalROITool.toolName);
-    toolGroup.setToolPassive(BidirectionalTool.toolName);
-    toolGroup.setToolPassive(AngleTool.toolName);
-    toolGroup.setToolPassive(ArrowAnnotateTool.toolName);
-    toolGroup.setToolPassive(EraserTool.toolName);
-    toolGroup.setToolPassive(PlanarFreehandROITool.toolName);
   }
 
   return toolGroup;

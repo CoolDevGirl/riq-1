@@ -1,53 +1,110 @@
 import React from 'react';
 
 const tools = [
-  { name: 'WindowLevel', label: 'W/L', icon: '🌓' },
-  { name: 'Length', label: 'Length', icon: '📏' },
-  { name: 'Probe', label: 'Probe', icon: '📍' },
-  { name: 'RectangleROI', label: 'Rect', icon: '⬜' },
-  { name: 'EllipticalROI', label: 'Ellipse', icon: '⭕' },
-  { name: 'Bidirectional', label: 'Bidirect', icon: '↔️' },
+  { name: 'WindowLevel', label: 'W/L' },
+  { name: 'Length', label: 'Length' },
+  { name: 'Probe', label: 'Probe' },
+  { name: 'RectangleROI', label: 'RectangleROI' },
+  { name: 'EllipticalROI', label: 'EllipticalROI' },
+  { name: 'Bidirectional', label: 'Bidirectional' },
+  { name: 'Angle', label: 'Angle' },
+  { name: 'CobbAngle', label: 'Cobb Angle' },
+  { name: 'CircleROI', label: 'Circle ROI' },
+  { name: 'ArrowAnnotate', label: 'ArrowAnnotate' },
+  { name: 'PlanarFreehandROI', label: 'PlanarFreehandROI' },
+  { name: 'Eraser', label: 'Eraser' },
 ];
 
-const AnnotationToolbar = ({ activeTool, onToolSelect }) => {
+const AnnotationToolbar = ({ activeTool, onToolSelect, onOrientationChange, onSave, onClear }) => {
   return (
     <div style={{
       display: 'flex',
-      flexWrap: 'wrap',
-      gap: '8px',
-      padding: '10px',
-      backgroundColor: '#222',
-      borderBottom: '1px solid #444',
-      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '5px',
+      padding: '5px 10px',
+      backgroundColor: '#f0f0f0',
+      borderBottom: '1px solid #ccc',
+      color: '#000',
+      fontSize: '14px',
       zIndex: 20
     }}>
-      {tools.map((tool) => (
-        <button
-          key={tool.name}
-          onClick={() => onToolSelect(tool.name)}
-          title={tool.name}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '8px',
-            minWidth: '60px',
-            border: '1px solid',
-            borderColor: activeTool === tool.name ? '#646cff' : 'transparent',
-            backgroundColor: activeTool === tool.name ? 'rgba(100, 108, 255, 0.2)' : '#333',
+      <select 
+        value={activeTool}
+        onChange={(e) => onToolSelect(e.target.value)}
+        style={{
+          padding: '2px 5px',
+          border: '1px solid #767676',
+          borderRadius: '2px',
+          backgroundColor: 'white',
+          fontSize: '14px',
+          minWidth: '150px'
+        }}
+      >
+        {tools.map((tool) => (
+          <option key={tool.name} value={tool.name}>
+            {tool.label}
+          </option>
+        ))}
+      </select>
+
+      <div style={{ display: 'flex', gap: '2px' }}>
+        <button 
+          onClick={() => onOrientationChange('flipH')}
+          style={{ padding: '2px 8px', border: '1px solid #767676', backgroundColor: '#efefef', cursor: 'pointer', borderRadius: '2px' }}
+        >
+          Flip H
+        </button>
+        <button 
+          onClick={() => onOrientationChange('flipV')}
+          style={{ padding: '2px 8px', border: '1px solid #767676', backgroundColor: '#efefef', cursor: 'pointer', borderRadius: '2px' }}
+        >
+          Flip V
+        </button>
+        <button 
+          onClick={() => onOrientationChange('rotate90')}
+          style={{ padding: '2px 8px', border: '1px solid #767676', backgroundColor: '#efefef', cursor: 'pointer', borderRadius: '2px' }}
+        >
+          Rotate Delta 90
+        </button>
+        <button 
+          onClick={() => onOrientationChange('center')}
+          style={{ padding: '2px 8px', border: '1px solid #767676', backgroundColor: '#efefef', cursor: 'pointer', borderRadius: '2px' }}
+        >
+          Center View
+        </button>
+
+        <div style={{ width: '1px', height: '20px', backgroundColor: '#bbb', margin: '0 5px' }} />
+
+        <button 
+          onClick={onSave}
+          style={{ 
+            padding: '2px 12px', 
+            border: '1px solid rgb(0, 102, 204)', 
+            backgroundColor: 'rgb(0, 120, 215)', 
             color: 'white',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            fontSize: '11px',
-            fontWeight: activeTool === tool.name ? 'bold' : 'normal'
+            cursor: 'pointer', 
+            borderRadius: '2px',
+            fontWeight: 'bold'
           }}
         >
-          <span style={{ fontSize: '18px', marginBottom: '4px' }}>{tool.icon}</span>
-          {tool.label}
+          Save
         </button>
-      ))}
+
+        <button 
+          onClick={onClear}
+          style={{ 
+            padding: '2px 12px', 
+            border: '1px solid rgb(204, 51, 0)', 
+            backgroundColor: 'rgb(235, 87, 87)', 
+            color: 'white',
+            cursor: 'pointer', 
+            borderRadius: '2px',
+            fontWeight: 'bold'
+          }}
+        >
+          Clear All
+        </button>
+      </div>
     </div>
   );
 };
